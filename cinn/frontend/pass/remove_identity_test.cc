@@ -21,6 +21,8 @@ namespace cinn::frontend {
 
 TEST(RemoveIdentity, remove_single) {
   //              <x>
+  //               |
+  //             relu
   //           /       \
   //     identity   identity
   //          |         |
@@ -29,20 +31,21 @@ TEST(RemoveIdentity, remove_single) {
   // <reduce_sum_1> <reduce_sum_2>
   NetBuilder builder("net_builder");
   auto x            = builder.CreateInput(Float(32), {32, 16}, "x");
-  auto identity_1   = builder.Identity(x);
-  auto identity_2   = builder.Identity(x);
+  auto relu_1       = builder.Relu(x);
+  auto identity_1   = builder.Identity(relu_1);
+  auto identity_2   = builder.Identity(relu_1);
   auto reduce_sum_1 = builder.ReduceSum(identity_1, {0});
   auto reduce_sum_2 = builder.ReduceSum(identity_2, {1});
 
   PassTest tester;
   std::vector<std::string> input_names    = {x.id().data()};
-  std::vector<std::string> output_names   = {reduce_sum_1->id};
-  std::vector<std::string> program_passes = {"RemoveIdentity", "DeadCodeEliminate"};
+  std::vector<std::string> output_names   = {reduce_sum_1->id, reduce_sum_2->id};
+  std::vector<std::string> program_passes = {"RemoveIdentity"};
   int num_removed_ops                     = tester.RunAndCheck(builder, program_passes, input_names, output_names);
-  ASSERT_EQ(num_removed_ops, 3);
+  ASSERT_EQ(num_removed_ops, 2);
 }
 
-TEST(RemoveIdentity, remove_branch) {
+TEST(RemoveIdentity, remove_output_branch) {
   //              <x>
   //               |
   //            identity
